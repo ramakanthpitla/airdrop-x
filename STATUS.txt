@@ -1,0 +1,45 @@
+AIRDROP X - STATUS (v0.2)
+=========================
+HONEST NOTE: The AI sandbox cannot reach Flutter/Android SDK hosts and has no macOS,
+so NO APK/DMG was compiled by me, and the code has NOT been compiled or run yet.
+Fastest way to get both binaries (no local setup):
+  1. Create a GitHub repo, push this folder.  2. Actions tab -> "Build APK and DMG" runs
+  automatically.  3. Download artifacts AirdropX-apk (app-release.apk) and AirdropX-dmg.
+  Mac app is unsigned: right-click -> Open the first time.
+Local build: flutter create --platforms=android,macos --org com.airdropx --project-name airdrop_x .
+  && python3 tools/patch_platform.py && flutter pub get && flutter build apk --release
+  (macOS: flutter build macos --release; then hdiutil create ... as in .github/workflows/build.yml)
+Expect to fix small compile errors on first build (I could not run the compiler).
+
+DONE (v0.2)
+SPEED
+- Parallel transfer: files >16 MB split into 4 byte-ranges sent over 4 simultaneous TCP
+  streams, written at offsets into a preallocated file (fills Wi-Fi link better than 1 stream).
+- 1 MiB read chunks, TCP_NODELAY, flush-based backpressure, UI updates throttled to ~12 fps.
+- Per-range SHA-256 verified by receiver reply; each range retried 3x independently.
+BACKGROUND
+- Android foreground service (flutter_foreground_task) with Wi-Fi lock + wake lock +
+  battery-optimization exemption request + live progress in the notification. Network
+  code lives in the app isolate, which stays alive while the service runs.
+- macOS: NSAppSleepDisabled (no App Nap throttling); app keeps serving when unfocused.
+- Android permissions/service declaration and Mac entitlements auto-patched by tools/patch_platform.py.
+OTHER: discovery (UDP broadcast), hotspot-subnet support, multi-file send, Open received file,
+  CI pipeline producing APK + DMG.
+
+KNOWN LIMITS (read this)
+- "As fast as AirDrop": AirDrop uses Apple's private AWDL peer-to-peer 5 GHz link. No
+  third-party app on Mac/Android can use AWDL. Realistic parity path = both devices on a
+  5 GHz hotspot/Wi-Fi 6 (hundreds of Mbps). Speed is bounded by the Wi-Fi link, not the code.
+- Android received files go to the app's external folder (Android/data/<pkg>/files),
+  not public Downloads (scoped storage). Needs MediaStore export.
+- Sender-side transfer runs while the app is open/foreground-service alive; killing the app stops it.
+- Unencrypted transfers; no accept/decline prompt.
+
+TO DO (priority)
+1. Compile, fix errors, test on real devices (Android<->Mac, Mac hotspot & Android hotspot).
+2. Auto-hotspot: Android LocalOnlyHotspot via MethodChannel + QR (SSID/pass); Mac joins via
+   `networksetup -setairportnetwork en0 SSID PASS`. Android Wi-Fi Direct for no-router case.
+3. MediaStore export to public Downloads; share-sheet "Send via AirDrop X"; Mac drag&drop.
+4. Accept/decline dialog, trusted devices, TLS/Noise encryption.
+5. Resume after disconnect (persist range progress), mDNS fallback, BLE discovery.
+6. App icon, signing + notarization, tests.
